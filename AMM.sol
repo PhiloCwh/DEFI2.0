@@ -49,8 +49,8 @@ contract CPAMM {
         How much dy for dx?
 
         xy = k
-        (x + dx)(y - dy) = k
-        y - dy = k / (x + dx)
+        (交易后)(x + dx)(y - dy) = k 对于交易所的视角 k = xy(交易前) y -dy = xy/(x + dx) // dy = y - xy/(x + dx)
+        y - dy = k / (x + dx)           // = (y(x + dx)  - xy) / (x + dx) = ydx  / (x + dx)
         y - k / (x + dx) = dy
         y - xy / (x + dx) = dy
         (yx + ydx - xy) / (x + dx) = dy
@@ -59,13 +59,37 @@ contract CPAMM {
         // 0.3% fee
         uint amountInWithFee = (_amountIn * 997) / 1000;
         amountOut = (reserveOut * amountInWithFee) / (reserveIn + amountInWithFee);
+        //(输出的token总数量 * 输入的token数量) / (输入token的总数量 + 输入的token数量)
+        // 比如有1000输出token，200输入token，用户输入50token，
+        //则 (1000 * 50)/(200 + 50) = 200 
+        //原价1000 ：200 是 5 ：1
+        //输出对比是 200 ：50 是 4 ：1
+        //出现这个结果就是滑点问题
+
+        /*
+        比如100000token1，20000token0，用户输入50token0
+        则(100000 * 50) / (20000 + 50) = 249.376558603
+        原价1000 ：200 是 5 ：1
+        输出对比是 249.376558603 ：50 是接近 5 ：1
+        池子越大用户的购买的比例占池子比例越低，则滑点越低
+
+
+
+        */
 
         tokenOut.transfer(msg.sender, amountOut);
 
         _update(token0.balanceOf(address(this)), token1.balanceOf(address(this)));
     }
+    //test function 
+    function addLiquidityRouterHelper (uint _amount0) public view returns(uint _amount1){
+        return _amount1 = reserve1 * _amount0 / reserve0;
+    }
 
-    function addLiquidity(uint _amount0, uint _amount1) external returns (uint shares) {
+    function addLiquidityRouter(uint _amount0)external {
+        addLiquidity(_amount0, addLiquidityRouterHelper(_amount0));
+    }
+    function addLiquidity(uint _amount0, uint _amount1) public returns (uint shares) {
         token0.transferFrom(msg.sender, address(this), _amount0);
         token1.transferFrom(msg.sender, address(this), _amount1);
 
