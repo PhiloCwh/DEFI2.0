@@ -47,7 +47,6 @@ contract CPAMM {
 
         /*
         How much dy for dx?
-
         xy = k
         (交易后)(x + dx)(y - dy) = k 对于交易所的视角 k = xy(交易前) y -dy = xy/(x + dx) // dy = y - xy/(x + dx)
         y - dy = k / (x + dx)           // = (y(x + dx)  - xy) / (x + dx) = ydx  / (x + dx)
@@ -72,9 +71,6 @@ contract CPAMM {
         原价1000 ：200 是 5 ：1
         输出对比是 249.376558603 ：50 是接近 5 ：1
         池子越大用户的购买的比例占池子比例越低，则滑点越低
-
-
-
         */
 
         tokenOut.transfer(msg.sender, amountOut);
@@ -89,76 +85,80 @@ contract CPAMM {
     function addLiquidityRouter(uint _amount0)external {
         addLiquidity(_amount0, addLiquidityRouterHelper(_amount0));
     }
+
+    /*
+        添加流动性得到的lptoken
+    lptoken = （token0 * token1 ）开根号
+    存在tokenA 和 tokenB
+    我们第一次添加了100A 和 400 B
+    Lptoken = sqrt（100 * 400）= 200
+    二次添加后的数量 token0*token1 开根号
+    撤回流动性
+    撤回的token0和token1 =
+
+    token0 = 撤回的lptoken/总lptoken*reverse0
+
+    token1 = 撤回的lptoken/总lptoken*reverse1
+    */
     function addLiquidity(uint _amount0, uint _amount1) public returns (uint shares) {
         token0.transferFrom(msg.sender, address(this), _amount0);
         token1.transferFrom(msg.sender, address(this), _amount1);
 
         /*
         How much dx, dy to add?
-
         xy = k
         (x + dx)(y + dy) = k'
-
         No price change, before and after adding liquidity
         x / y = (x + dx) / (y + dy)
-
         x(y + dy) = y(x + dx)
         x * dy = y * dx
-
         x / y = dx / dy
         dy = y / x * dx
         */
         if (reserve0 > 0 || reserve1 > 0) {
             require(reserve0 * _amount1 == reserve1 * _amount0, "x / y != dx / dy");
+            //必须保持等比例添加，添加后k值会改变
         }
 
         /*
         How much shares to mint?
-
         f(x, y) = value of liquidity
         We will define f(x, y) = sqrt(xy)
-
         L0 = f(x, y)
         L1 = f(x + dx, y + dy)
         T = total shares
         s = shares to mint
-
         Total shares should increase proportional to increase in liquidity
         L1 / L0 = (T + s) / T
-
         L1 * T = L0 * (T + s)
-
-        (L1 - L0) * T / L0 = s 
+        式子A
+        A:(L1 - L0) * T / L0 = s 
         */
 
         /*
         Claim
-        (L1 - L0) / L0 = dx / x = dy / y
-
+        其实就是 dlp/lp = dx/x = dy /y
+        式子B
+        B:(L1 - L0) / L0 = dx / x = dy / y 则 dx/x*T 或 dy/y *T
         Proof
         --- Equation 1 ---
         (L1 - L0) / L0 = (sqrt((x + dx)(y + dy)) - sqrt(xy)) / sqrt(xy)
         
         dx / dy = x / y so replace dy = dx * y / x
-
         --- Equation 2 ---
         Equation 1 = (sqrt(xy + 2ydx + dx^2 * y / x) - sqrt(xy)) / sqrt(xy)
-
         Multiply by sqrt(x) / sqrt(x)
         Equation 2 = (sqrt(x^2y + 2xydx + dx^2 * y) - sqrt(x^2y)) / sqrt(x^2y)
                    = (sqrt(y)(sqrt(x^2 + 2xdx + dx^2) - sqrt(x^2)) / (sqrt(y)sqrt(x^2))
         
         sqrt(y) on top and bottom cancels out
-
         --- Equation 3 ---
         Equation 2 = (sqrt(x^2 + 2xdx + dx^2) - sqrt(x^2)) / (sqrt(x^2)
         = (sqrt((x + dx)^2) - sqrt(x^2)) / sqrt(x^2)  
         = ((x + dx) - x) / x
         = dx / x
-
         Since dx / dy = x / y,
         dx / x = dy / y
-
         Finally
         (L1 - L0) / L0 = dx / x = dy / y
         */
@@ -175,7 +175,14 @@ contract CPAMM {
 
         _update(token0.balanceOf(address(this)), token1.balanceOf(address(this)));
     }
+    /*
+        撤回流动性
+    撤回的token0和token1 =
 
+    token0 = 撤回的lptoken/总lptoken*reverse0
+
+    token1 = 撤回的lptoken/总lptoken*reverse1
+    */
     function removeLiquidity(
         uint _shares
     ) external returns (uint amount0, uint amount1) {
@@ -184,7 +191,6 @@ contract CPAMM {
         dx, dy = amount of liquidity to remove
         dx = s / T * x
         dy = s / T * y
-
         Proof
         Let's find dx, dy such that
         v / L = s / T
@@ -194,21 +200,16 @@ contract CPAMM {
         L = total liquidity = sqrt(xy)
         s = shares
         T = total supply
-
         --- Equation 1 ---
         v = s / T * L
         sqrt(dxdy) = s / T * sqrt(xy)
-
         Amount of liquidity to remove must not change price so 
         dx / dy = x / y
-
         replace dy = dx * y / x
         sqrt(dxdy) = sqrt(dx * dx * y / x) = dx * sqrt(y / x)
-
         Divide both sides of Equation 1 with sqrt(y / x)
         dx = s / T * sqrt(xy) / sqrt(y / x)
            = s / T * sqrt(x^2) = s / T * x
-
         Likewise
         dy = s / T * y
         */
@@ -218,7 +219,7 @@ contract CPAMM {
         uint bal0 = token0.balanceOf(address(this));
         uint bal1 = token1.balanceOf(address(this));
 
-        amount0 = (_shares * bal0) / totalSupply;
+        amount0 = (_shares * bal0) / totalSupply;//share * totalsuply/bal0
         amount1 = (_shares * bal1) / totalSupply;
         require(amount0 > 0 && amount1 > 0, "amount0 or amount1 = 0");
 
